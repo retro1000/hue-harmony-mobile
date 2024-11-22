@@ -1,61 +1,135 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 
-public class PlaneDetectionController : MonoBehaviour
+public class WallPlaneCreator : MonoBehaviour
 {
+    private ARRaycastManager _raycastManager;
     private ARPlaneManager _planeManager;
+
+    // List to store user-selected points
+    private List<Vector3> _selectedPoints = new List<Vector3>();
+
+    // Prefab for visualizing selected points
+    public GameObject pointPrefab;
+
+    // Reference to the line renderer for connecting points
+    private LineRenderer _lineRenderer;
 
     void Start()
     {
-        // Get the ARPlaneManager component from the GameObject
+        // Get ARRaycastManager and ARPlaneManager components
+        _raycastManager = GetComponent<ARRaycastManager>();
         _planeManager = GetComponent<ARPlaneManager>();
 
         if (_planeManager != null)
         {
-            // Enable plane detection
-            _planeManager.enabled = true;
-
-            // Set the detection mode to detect both horizontal and vertical planes
             _planeManager.detectionMode = PlaneDetectionMode.Vertical;
-
-            // Subscribe to the planesChanged event to track when planes are added, updated, or removed
-            _planeManager.planesChanged += OnPlanesChanged;
         }
-        else
+
+        // Add a LineRenderer component to the GameObject to visualize the lines
+        _lineRenderer = gameObject.AddComponent<LineRenderer>();
+        _lineRenderer.startWidth = 0.01f;
+        _lineRenderer.endWidth = 0.01f;
+        _lineRenderer.positionCount = 0;
+        _lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        _lineRenderer.startColor = Color.green;
+        _lineRenderer.endColor = Color.green;
+    }
+
+    void Update()
+    {
+        // Check for user input (touch on the screen)
+        if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
         {
-            Debug.LogError("ARPlaneManager component not found on this GameObject.");
+            // Perform a raycast from the touch position
+            Vector2 touchPosition = Input.GetTouch(0).position;
+            List<ARRaycastHit> hits = new List<ARRaycastHit>();
+
+            if (_raycastManager.Raycast(touchPosition, hits, TrackableType.PlaneWithinPolygon))
+            {
+                // Get the first hit point on a vertical plane
+                ARRaycastHit hit = hits[0];
+                ARPlane plane = _planeManager.GetPlane(hit.trackableId);
+
+                if (plane.alignment == PlaneAlignment.Vertical)
+                {
+                    // Add the hit point to the list of selected points
+                    Vector3 selectedPoint = hit.pose.position;
+                    _selectedPoints.Add(selectedPoint);
+
+                    // Visualize the selected point
+                    if (pointPrefab != null)
+                    {
+                        Instantiate(pointPrefab, selectedPoint, Quaternion.identity);
+                    }
+
+                    // Update the LineRenderer to connect the points
+                    UpdateLineRenderer();
+                }
+            }
         }
     }
 
-    // This method is called whenever planes are added, updated, or removed
-    private void OnPlanesChanged(ARPlanesChangedEventArgs eventArgs)
+    // Updates the LineRenderer to connect the selected points
+    private void UpdateLineRenderer()
     {
-        // Log planes that were added
-        foreach (ARPlane addedPlane in eventArgs.added)
+        _lineRenderer.positionCount = _selectedPoints.Count;
+
+        for (int i = 0; i < _selectedPoints.Count; i++)
         {
-            Debug.Log("Plane added: " + addedPlane.trackableId);
+            _lineRenderer.SetPosition(i, _selectedPoints[i]);
         }
 
-        // Log planes that were updated
-        foreach (ARPlane updatedPlane in eventArgs.updated)
+        // Close the shape if enough points are selected
+        if (_selectedPoints.Count > 2)
         {
-            Debug.Log("Plane updated: " + updatedPlane.trackableId);
-        }
+            // Connect the last point to the first
+            _lineRenderer.loop = true;
 
-        // Log planes that were removed
-        foreach (ARPlane removedPlane in eventArgs.removed)
-        {
-            Debug.Log("Plane removed: " + removedPlane.trackableId);
+            // Optionally, generate a mesh from the selected points
+            GenerateMesh();
         }
     }
 
-    // Unsubscribe from the planesChanged event when the object is destroyed
-    void OnDestroy()
+    // Generate a mesh from the selected points
+    private void GenerateMesh()
     {
-        if (_planeManager != null)
+        // Create a new GameObject for the mesh
+        GameObject planeObject = new GameObject("GeneratedPlane");
+        MeshFilter meshFilter = planeObject.AddComponent<MeshFilter>();
+        MeshRenderer meshRenderer = planeObject.AddComponent<MeshRenderer>();
+
+        // Assign a material to the mesh
+        meshRenderer.material = new Material(Shader.Find("Standard"));
+
+        // Create a new mesh
+        Mesh mesh = new Mesh();
+
+        // Convert selected points to local coordinates relative to the plane object
+        Vector3[] vertices = _selectedPoints.ToArray();
+
+        // Generate triangles (assuming a convex polygon)
+        int[] triangles = new int[(vertices.Length - 2) * 3];
+        for (int i = 1; i < vertices.Length - 1; i++)
         {
-            _planeManager.planesChanged -= OnPlanesChanged;
+            int triangleIndex = (i - 1) * 3;
+            triangles[triangleIndex] = 0;
+            triangles[triangleIndex + 1] = i;
+            triangles[triangleIndex + 2] = i + 1;
         }
+
+        // Assign vertices and triangles to the mesh
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+
+        // Assign the mesh to the MeshFilter
+        meshFilter.mesh = mesh;
+
+        // Reset the selected points for the next shape
+        _selectedPoints.Clear();
+        _lineRenderer.positionCount = 0;
     }
 }

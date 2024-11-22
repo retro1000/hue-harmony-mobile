@@ -215,7 +215,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_PlanePrefab: {fileID: 8539117036199159143, guid: f4c9f96c030554e84b263750bfcb49fb, type: 3}
-  m_DetectionMode: -1
+  m_DetectionMode: 2
 --- !u!114 &570924732
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -274,6 +274,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca6e42b93760348a2b5c6f4c0cac4041, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  pointPrefab: {fileID: 8219490777578311020, guid: 95b3d271000cf4bb4b63473454d1a084, type: 3}
 --- !u!1 &692283181
 GameObject:
   m_ObjectHideFlags: 0
